@@ -43,6 +43,14 @@ export const appNav: NavItem[] = [
 		emptyEn: 'No people recognised yet.'
 	},
 	{
+		path: '/favorites',
+		icon: 'star',
+		hr: 'Favoriti',
+		en: 'Favorites',
+		emptyHr: 'Još nema favorita. Označite fotku zvjezdicom.',
+		emptyEn: 'No favorites yet. Mark a photo with the star.'
+	},
+	{
 		path: '/albums',
 		icon: 'album',
 		hr: 'Albumi',
@@ -164,6 +172,14 @@ export const adminNav: NavItem[] = [
 		en: 'Settings',
 		emptyHr: 'Postavke stižu u kasnijoj fazi.',
 		emptyEn: 'Settings arrive in a later phase.'
+	},
+	{
+		path: '/admin/security',
+		icon: 'lock',
+		hr: 'Sigurnost',
+		en: 'Security',
+		emptyHr: 'Još nema zapisa.',
+		emptyEn: 'Nothing recorded yet.'
 	},
 	{
 		path: '/admin/audit',

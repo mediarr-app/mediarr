@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -51,6 +52,8 @@ type Deps struct {
 	ExternalPath string
 	// ProxyHops is how many reverse proxies stand in front of the bundled nginx.
 	ProxyHops int
+	// CheckUpdates asks the public repository now and then whether a newer version exists.
+	CheckUpdates bool
 	// DemoEmail is an account anyone may sign in to, so it can look at everything and change nothing.
 	DemoEmail string
 	// MaxUploadBytes limits one file, if above zero.
@@ -67,6 +70,8 @@ type Deps struct {
 type apiServer struct {
 	Deps
 	queries           *db.Queries
+	blockedLogged     *auth.Limiter
+	security          atomic.Pointer[securityRules]
 	userLimiter       *auth.Limiter
 	ipLimiter         *auth.Limiter
 	linkPasswords     *auth.Limiter
@@ -99,6 +104,10 @@ func NewHandler(deps Deps) (http.Handler, error) {
 		oidcCodes:         newShortLived[oidcAppCode](),
 		passkeyChallenges: newShortLived[passkeyChallenge](),
 		guestBytes:        newByteBudget(),
+		blockedLogged:     auth.NewLimiter(1, time.Minute),
+	}
+	if deps.CheckUpdates && Version != "dev" {
+		go server.watchUpdates()
 	}
 	if deps.Pool != nil {
 		server.queries = db.New(deps.Pool)
@@ -116,6 +125,9 @@ func NewHandler(deps Deps) (http.Handler, error) {
 	r.Use(server.metrics.observe)
 	r.Use(middleware.Recoverer)
 	r.Use(trustProxies(deps.ProxyHops))
+	if server.queries != nil {
+		r.Use(server.enforceIPAllowlist)
+	}
 	r.Use(requireJSONForWrites)
 	r.Use(sameOriginWrites)
 	if server.queries != nil {

@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	usage             = "usage: mediarr <serve|worker|healthcheck|migrate [down]|user upsert <email> <name> [--admin]|user reset-vault <email>>"
+	usage             = "usage: mediarr <serve|worker|healthcheck|migrate [down]|user upsert <email> <name> [--admin]|user reset-vault <email>|security reset>"
 	stateStorageReady = "storage_initialized"
 )
 
@@ -65,6 +65,8 @@ func run(ctx context.Context, args []string) error {
 		return reprocess(ctx, cfg)
 	case "user":
 		return upsertUser(ctx, cfg, args[1:])
+	case "security":
+		return securityCommand(ctx, cfg, args[1:])
 	case "restore-backup":
 		return restoreBackup(ctx, cfg)
 	default:
@@ -118,7 +120,7 @@ func serve(ctx context.Context, cfg config.Config) error {
 	if err != nil {
 		return fmt.Errorf("create job client: %w", err)
 	}
-	handler, err := app.NewHandler(app.Deps{MLURL: cfg.MLURL, Pinger: queries, Pool: pool, Inserter: inserter, LibraryPath: cfg.LibraryPath, CachePath: cfg.CachePath, ExternalPath: cfg.ExternalPath, ProxyHops: cfg.ProxyHops, DemoEmail: cfg.DemoEmail, MaxUploadBytes: cfg.MaxUploadBytes, MetricsToken: cfg.MetricsToken, BackupPath: cfg.BackupPath})
+	handler, err := app.NewHandler(app.Deps{MLURL: cfg.MLURL, Pinger: queries, Pool: pool, Inserter: inserter, LibraryPath: cfg.LibraryPath, CachePath: cfg.CachePath, ExternalPath: cfg.ExternalPath, ProxyHops: cfg.ProxyHops, DemoEmail: cfg.DemoEmail, CheckUpdates: cfg.CheckUpdates, MaxUploadBytes: cfg.MaxUploadBytes, MetricsToken: cfg.MetricsToken, BackupPath: cfg.BackupPath})
 	if err != nil {
 		return err
 	}
@@ -362,4 +364,17 @@ func healthcheck(ctx context.Context, cfg config.Config) error {
 		return fmt.Errorf("health returned %d", resp.StatusCode)
 	}
 	return nil
+}
+
+// securityCommand is the way back in for someone who locked themselves out.
+func securityCommand(ctx context.Context, cfg config.Config, args []string) error {
+	if len(args) != 1 || args[0] != "reset" {
+		return errors.New(usage)
+	}
+	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+	return app.ResetSecurity(ctx, db.New(pool))
 }

@@ -50,6 +50,10 @@ export type Duplicates = components['schemas']['Duplicates'];
 export type DuplicateGroup = components['schemas']['DuplicateGroup'];
 export type MapPoints = components['schemas']['MapPoints'];
 export type Memory = components['schemas']['Memory'];
+export type ServerStatus = components['schemas']['ServerStatus'];
+export type SecuritySettings = components['schemas']['SecuritySettings'];
+export type SecurityUpdate = components['schemas']['SecurityUpdate'];
+export type SecurityEvent = components['schemas']['SecurityEvent'];
 export type StoryExport = components['schemas']['StoryExport'];
 export type SearchResult = components['schemas']['SearchResult'];
 export type Person = components['schemas']['Person'];
@@ -187,6 +191,7 @@ export const api = {
 	mergePeople: (id: string, ids: string[]) =>
 		request<void>(fetch, `/api/people/${id}/merge`, { ids }),
 	analysisProgress: () => request<AnalysisProgress>(fetch, '/api/admin/analysis'),
+	serverStatus: () => request<ServerStatus>(fetch, '/api/server/status'),
 	memories: (date: string) => request<Memory[]>(fetch, `/api/memories?date=${date}`),
 	createStory: (title: string, ids: string[]) =>
 		request<StoryExport>(fetch, '/api/stories', { title, ids }),
@@ -228,6 +233,14 @@ export const api = {
 	trashSummary: () => request<TrashSummary>(fetch, '/api/trash/summary'),
 	authMethods: () => request<AuthMethods>(fetch, '/api/auth/methods'),
 	oidcSettings: () => request<OIDCSettings>(fetch, '/api/admin/oidc'),
+	security: () => request<SecuritySettings>(fetch, '/api/admin/security'),
+	setSecurity: (body: SecurityUpdate) =>
+		request<SecuritySettings>(fetch, '/api/admin/security', body, 'PUT'),
+	securityEvents: () => request<SecurityEvent[]>(fetch, '/api/admin/security/events'),
+	approveDevice: (id: string) =>
+		request<void>(fetch, `/api/admin/security/devices/${id}/approve`, {}),
+	deleteDevice: (id: string) =>
+		request<void>(fetch, `/api/admin/security/devices/${id}`, undefined, 'DELETE'),
 	setOIDCSettings: (body: OIDCSettingsUpdate) =>
 		request<OIDCSettings>(fetch, '/api/admin/oidc', body, 'PUT'),
 	passkeys: () => request<Passkey[]>(fetch, '/api/me/passkeys'),
@@ -304,8 +317,9 @@ export const publicSource = (token: string) => sourceAt(`/api/public/${token}`);
 export const familySource = () => sourceAt('/api/family');
 export const tagSource = (id: string) => sourceAt(`/api/tags/${id}`);
 export const personSource = (id: string) => sourceAt(`/api/people/${id}`);
-export const collectionBase = (scope: 'archive' | 'trash' | 'vault') => `/api/collections/${scope}`;
-export const collectionSource = (scope: 'archive' | 'trash' | 'vault') =>
+export const collectionBase = (scope: 'favorites' | 'archive' | 'trash' | 'vault') =>
+	`/api/collections/${scope}`;
+export const collectionSource = (scope: 'favorites' | 'archive' | 'trash' | 'vault') =>
 	sourceAt(collectionBase(scope));
 
 export function initialsOf(name: string) {

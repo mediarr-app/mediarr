@@ -227,6 +227,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/server/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The version of this server, whether a newer one exists, and its disk */
+        get: operations["getServerStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/overview": {
         parameters: {
             query?: never;
@@ -1541,6 +1558,75 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/security": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Who may reach this server, and the devices that have tried */
+        get: operations["getSecurity"];
+        /** Change the rules. Refused if it would lock out the person asking */
+        put: operations["setSecurity"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/security/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Attempts to get in, newest first */
+        get: operations["listSecurityEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/security/devices/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Let this device sign in */
+        post: operations["approveDevice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/security/devices/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Forget this device, which then has to be approved again */
+        delete: operations["deleteDevice"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3024,6 +3110,53 @@ export interface components {
         PasswordConfirm: {
             password: string;
         };
+        SecuritySettings: {
+            ipAllowlistEnabled: boolean;
+            ipAllowlist: string[];
+            deviceApprovalEnabled: boolean;
+            /** @description The address this server sees for the person asking */
+            yourAddress: string;
+            devices: components["schemas"]["SecurityDevice"][];
+        };
+        SecurityUpdate: {
+            ipAllowlistEnabled: boolean;
+            ipAllowlist: string[];
+            deviceApprovalEnabled: boolean;
+        };
+        SecurityDevice: {
+            /** Format: uuid */
+            id: string;
+            email: string;
+            ip: string;
+            userAgent: string;
+            /** Format: date-time */
+            firstSeen: string;
+            /** Format: date-time */
+            lastSeen: string;
+            approved: boolean;
+        };
+        SecurityEvent: {
+            /** Format: int64 */
+            id: number;
+            /** Format: date-time */
+            at: string;
+            /** @enum {string} */
+            kind: "login_ok" | "login_failed" | "login_locked" | "ip_blocked" | "device_blocked";
+            email: string;
+            ip: string;
+            userAgent: string;
+            detail: string;
+        };
+        ServerStatus: {
+            version: string;
+            /** @description Known only when the update check is on and has answered */
+            latestVersion?: string;
+            updateAvailable: boolean;
+            /** Format: int64 */
+            diskUsedBytes: number;
+            /** Format: int64 */
+            diskTotalBytes: number;
+        };
         AdminOverview: {
             /** Format: int64 */
             users: number;
@@ -3599,6 +3732,27 @@ export interface operations {
             401: components["responses"]["Error"];
             403: components["responses"]["Error"];
             409: components["responses"]["Error"];
+        };
+    };
+    getServerStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerStatus"];
+                };
+            };
+            401: components["responses"]["Error"];
         };
     };
     getAdminOverview: {
@@ -4947,7 +5101,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                scope: "archive" | "trash" | "vault";
+                scope: "favorites" | "archive" | "trash" | "vault";
             };
             cookie?: never;
         };
@@ -4971,7 +5125,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                scope: "archive" | "trash" | "vault";
+                scope: "favorites" | "archive" | "trash" | "vault";
                 month: string;
             };
             cookie?: never;
@@ -4997,7 +5151,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                scope: "archive" | "trash" | "vault";
+                scope: "favorites" | "archive" | "trash" | "vault";
                 id: string;
             };
             cookie?: never;
@@ -5024,7 +5178,7 @@ export interface operations {
             };
             header?: never;
             path: {
-                scope: "archive" | "trash" | "vault";
+                scope: "favorites" | "archive" | "trash" | "vault";
                 id: string;
             };
             cookie?: never;
@@ -5051,7 +5205,7 @@ export interface operations {
             };
             header?: never;
             path: {
-                scope: "archive" | "trash" | "vault";
+                scope: "favorites" | "archive" | "trash" | "vault";
                 id: string;
             };
             cookie?: never;
@@ -5076,7 +5230,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                scope: "archive" | "trash" | "vault";
+                scope: "favorites" | "archive" | "trash" | "vault";
                 id: string;
             };
             cookie?: never;
@@ -5101,7 +5255,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                scope: "archive" | "trash" | "vault";
+                scope: "favorites" | "archive" | "trash" | "vault";
                 id: string;
                 file: string;
             };
@@ -5755,6 +5909,126 @@ export interface operations {
             };
             401: components["responses"]["Error"];
             403: components["responses"]["Error"];
+        };
+    };
+    getSecurity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The rules */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecuritySettings"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+        };
+    };
+    setSecurity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SecurityUpdate"];
+            };
+        };
+        responses: {
+            /** @description The rules now */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecuritySettings"];
+                };
+            };
+            400: components["responses"]["Error"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+        };
+    };
+    listSecurityEvents: {
+        parameters: {
+            query?: {
+                /** @description Entries older than this one */
+                before?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The attempts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecurityEvent"][];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+        };
+    };
+    approveDevice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Approved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+        };
+    };
+    deleteDevice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Forgotten */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
         };
     };
     getAdminJobs: {
