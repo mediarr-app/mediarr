@@ -1,0 +1,10 @@
+.git
+.dev
+docker/.env
+mobile
+docs
+**/node_modules
+**/.svelte-kit
+web/build
+**/.venv
+**/__pycache__

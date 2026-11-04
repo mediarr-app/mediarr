@@ -1,0 +1,3047 @@
+openapi: 3.0.3
+info:
+  title: Mediarr API
+  version: 0.3.0
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Report whether the server can reach its database
+      responses:
+        "200":
+          description: Server is healthy
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Health" }
+        "503":
+          description: Server cannot reach its database
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Health" }
+  /api/auth/status:
+    get:
+      operationId: getAuthStatus
+      summary: Report whether setup is needed and who is signed in
+      responses:
+        "200":
+          description: Current status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthStatus" }
+  /api/auth/setup:
+    post:
+      operationId: setup
+      summary: Create the first administrator. Closed once any user exists.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SetupRequest" }
+      responses:
+        "201":
+          description: Administrator created and signed in
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "400": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/auth/login:
+    post:
+      operationId: login
+      summary: Sign in with email, password and, when enabled, a TOTP code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401":
+          description: Wrong credentials, or a TOTP code is required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoginError" }
+        "429": { $ref: "#/components/responses/Error" }
+  /api/auth/logout:
+    post:
+      operationId: logout
+      summary: End the current session
+      responses:
+        "204": { description: Signed out }
+  /api/me/password:
+    post:
+      operationId: changePassword
+      summary: Change the current user's password and end their other sessions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ChangePasswordRequest" }
+      responses:
+        "204": { description: Password changed }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/me/totp/setup:
+    post:
+      operationId: setupTotp
+      summary: Generate a TOTP secret. It takes effect only after confirmation.
+      responses:
+        "200":
+          description: Secret to add to an authenticator app
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TotpSetup" }
+        "401": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/me/totp/enable:
+    post:
+      operationId: enableTotp
+      summary: Confirm a code and turn on TOTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TotpCode" }
+      responses:
+        "204": { description: TOTP enabled }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/me/totp/disable:
+    post:
+      operationId: disableTotp
+      summary: Turn off TOTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PasswordConfirm" }
+      responses:
+        "204": { description: TOTP disabled }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/me/api-keys:
+    get:
+      operationId: listAPIKeys
+      summary: The current user's keys, without the keys themselves
+      responses:
+        "200":
+          description: The keys
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/ApiKey" } }
+        "401": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createAPIKey
+      summary: Create a key with chosen rights. It is shown only once
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ApiKeyCreate" }
+      responses:
+        "201":
+          description: The key
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeviceKey" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /api/me/device-keys:
+    post:
+      operationId: createDeviceKey
+      summary: Create a long-lived key for this device, used by background backup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateDeviceKeyRequest" }
+      responses:
+        "201":
+          description: The key. It is shown only once.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeviceKey" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/me/device-keys/{id}:
+    delete:
+      operationId: revokeDeviceKey
+      summary: Revoke one of the current user's device keys
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: Key revoked }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/admin/users:
+    get:
+      operationId: listUsers
+      summary: List users
+      responses:
+        "200":
+          description: All users
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createUser
+      summary: Create a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateUserRequest" }
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/admin/overview:
+    get:
+      operationId: getAdminOverview
+      summary: Live statistics of the whole server, read from the database and the library disk
+      responses:
+        "200":
+          description: Current statistics
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminOverview" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /api/assets:
+    get:
+      operationId: listAssets
+      summary: List the current user's most recent assets and their processing status
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - name: status
+          in: query
+          schema: { type: string, enum: [processing, ready, failed] }
+      responses:
+        "200":
+          description: Assets, newest first
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AssetList" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/assets/bulk:
+    post:
+      operationId: bulkAssets
+      summary: Apply an action to several of the current user's assets. Other assets are ignored.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BulkRequest" }
+      responses:
+        "200":
+          description: How many assets changed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BulkResponse" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/assets/download:
+    get:
+      operationId: downloadAssets
+      summary: Download several originals as one uncompressed ZIP file
+      parameters:
+        - name: ids
+          in: query
+          required: true
+          description: Comma-separated asset IDs, at most 100
+          schema: { type: string }
+      responses:
+        "200":
+          description: ZIP file
+          content:
+            application/zip:
+              schema: { type: string, format: binary }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/assets/{id}:
+    get:
+      operationId: getAsset
+      summary: Read an asset's details and its neighbours on the timeline
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: The asset
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AssetDetail" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/assets/{id}/thumbnail:
+    get:
+      operationId: getAssetThumbnail
+      summary: Read a WebP thumbnail
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: size, in: query, description: "source is the unedited picture, for its owner", schema: { type: string, enum: [small, large, full, source], default: small } }
+      responses:
+        "200":
+          description: The thumbnail
+          content:
+            image/webp:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/assets/{id}/original:
+    get:
+      operationId: getAssetOriginal
+      summary: Read the unmodified original. Supports Range requests for video.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: download, in: query, schema: { type: boolean, default: false } }
+      responses:
+        "200":
+          description: The original file
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "206": { description: Part of the original file }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/assets/{id}/motion:
+    get:
+      operationId: getAssetMotion
+      summary: Read the video embedded in an Android Motion Photo
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: The video
+          content:
+            video/mp4:
+              schema: { type: string, format: binary }
+        "206": { description: Part of the video }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/assets/{id}/video/{file}:
+    get:
+      operationId: getAssetVideoFile
+      summary: Read an HLS playlist or segment, or the scrub strip (sprite.jpg)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: file, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: The file
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/timeline/buckets:
+    get:
+      operationId: getTimelineBuckets
+      summary: List the months that have photos, newest first
+      responses:
+        "200":
+          description: Months and how many assets each has
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimelineBuckets" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/timeline/buckets/{month}:
+    get:
+      operationId: getTimelineBucket
+      summary: List one month's assets, newest first
+      parameters:
+        - { name: month, in: path, required: true, description: YYYY-MM, schema: { type: string } }
+      responses:
+        "200":
+          description: The month's assets
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimelineBucket" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/assets/check:
+    post:
+      operationId: checkAssets
+      summary: Report which SHA-256 checksums the current user already has, so uploads can be skipped
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ChecksumCheckRequest" }
+      responses:
+        "200":
+          description: Checksums that already exist
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChecksumCheckResponse" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/uploads:
+    post:
+      operationId: createUpload
+      summary: Create a resumable upload (tus 1.0). A body uploads the whole file in this request.
+      responses:
+        "201": { description: "Upload created; see the Location header. With a whole file in the body, also X-Asset-Id." }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/uploads/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    head:
+      operationId: getUploadOffset
+      summary: Read how much of an upload has arrived (tus 1.0)
+      responses:
+        "200": { description: See the Upload-Offset header }
+        "404": { description: No such upload }
+    patch:
+      operationId: appendUpload
+      summary: Append data to an upload (tus 1.0). The last chunk returns X-Asset-Id.
+      responses:
+        "204": { description: Data stored }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: cancelUpload
+      summary: Cancel an upload (tus 1.0)
+      responses:
+        "204": { description: Upload cancelled }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/users/directory:
+    get:
+      operationId: listDirectory
+      summary: The other users of this server, for choosing who to share with
+      responses:
+        "200":
+          description: Users
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/UserRef" } }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/albums:
+    get:
+      operationId: listAlbums
+      summary: Albums the current user owns or that are shared with them
+      parameters:
+        - name: sort
+          in: query
+          schema: { type: string, enum: [updated, title, date], default: updated }
+      responses:
+        "200":
+          description: Albums
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Album" } }
+        "401": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createAlbum
+      summary: Create an album. With rules it is a smart album.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AlbumCreate" }
+      responses:
+        "201":
+          description: The album
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Album" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/albums/cameras:
+    get:
+      operationId: listCameras
+      summary: Cameras in the current user's library, for smart album rules
+      responses:
+        "200":
+          description: Camera names
+          content:
+            application/json:
+              schema: { type: array, items: { type: string } }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/albums/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: getAlbum
+      summary: Read an album and its members
+      responses:
+        "200":
+          description: The album
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Album" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    patch:
+      operationId: updateAlbum
+      summary: Change an album. Needs the editor role.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AlbumUpdate" }
+      responses:
+        "200":
+          description: The album
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Album" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteAlbum
+      summary: Delete an album, but not its photos. Owner only.
+      responses:
+        "204": { description: Deleted }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/albums/{id}/assets:
+    post:
+      operationId: addAlbumAssets
+      summary: Add your own assets to an album. Needs the contributor role.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AssetIds" }
+      responses:
+        "200":
+          description: How many were added
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BulkResponse" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/albums/{id}/assets/remove:
+    post:
+      operationId: removeAlbumAssets
+      summary: Remove assets from an album. A contributor can remove only what they added.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AssetIds" }
+      responses:
+        "200":
+          description: How many were removed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BulkResponse" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/albums/{id}/buckets:
+    get:
+      operationId: getAlbumBuckets
+      summary: Months in an album, in the album's order
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Months
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimelineBuckets" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/albums/{id}/buckets/{month}:
+    get:
+      operationId: getAlbumBucket
+      summary: Assets of one month in an album
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: month, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Assets
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimelineBucket" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/albums/{id}/members/{userId}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: userId, in: path, required: true, schema: { type: string, format: uuid } }
+    put:
+      operationId: setAlbumMember
+      summary: Share an album with a user or change their role. Owner only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MemberRole" }
+      responses:
+        "204": { description: Saved }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: removeAlbumMember
+      summary: End a user's access. The owner can remove anyone, and a member can leave.
+      responses:
+        "204": { description: Removed }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/albums/{id}/comments:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: listAlbumComments
+      summary: Comments on an album, or with assetId on one photo, and that photo's hearts
+      parameters:
+        - { name: assetId, in: query, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Comments and hearts
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Activity" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createAlbumComment
+      summary: Comment on an album or on a photo in it
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommentCreate" }
+      responses:
+        "204": { description: Saved }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/albums/{id}/comments/{commentId}:
+    delete:
+      operationId: deleteAlbumComment
+      summary: Delete a comment. The author, an editor or the owner can do this.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: commentId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: Deleted }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/albums/{id}/assets/{assetId}/heart:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: assetId, in: path, required: true, schema: { type: string, format: uuid } }
+    put:
+      operationId: setAlbumHeart
+      summary: Add your heart to a photo in an album
+      responses:
+        "204": { description: Saved }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: removeAlbumHeart
+      summary: Take back your heart
+      responses:
+        "204": { description: Removed }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/albums/{id}/links:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: listAlbumLinks
+      summary: Public links of an album. Owner only.
+      responses:
+        "200":
+          description: Links
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/ShareLink" } }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createAlbumLink
+      summary: Create a public link. Its token is returned only this once.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ShareLinkCreate" }
+      responses:
+        "201":
+          description: The link
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShareLink" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/albums/{id}/links/{linkId}:
+    delete:
+      operationId: deleteAlbumLink
+      summary: Revoke a public link. It stops working at once.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: linkId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: Revoked }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/partners:
+    get:
+      operationId: listPartners
+      summary: Who you share your library with, and who shares theirs with you
+      responses:
+        "200":
+          description: Partners
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Partners" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/partners/{userId}:
+    parameters:
+      - { name: userId, in: path, required: true, schema: { type: string, format: uuid } }
+    put:
+      operationId: setPartner
+      summary: Share your library with a user, all of it or from a date
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PartnerShare" }
+      responses:
+        "204": { description: Saved }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: removePartner
+      summary: Stop sharing your library with a user
+      responses:
+        "204": { description: Stopped }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/partners/{userId}/timeline:
+    put:
+      operationId: setPartnerTimeline
+      summary: Choose whether a partner's photos also appear in your timeline
+      parameters:
+        - { name: userId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PartnerTimeline" }
+      responses:
+        "204": { description: Saved }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/partners/{userId}/buckets:
+    get:
+      operationId: getPartnerBuckets
+      summary: Months in a library shared with you
+      parameters:
+        - { name: userId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Months
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimelineBuckets" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/partners/{userId}/buckets/{month}:
+    get:
+      operationId: getPartnerBucket
+      summary: Assets of one month in a library shared with you
+      parameters:
+        - { name: userId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: month, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Assets
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimelineBucket" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/public/{token}:
+    get:
+      operationId: getPublicLink
+      summary: What a public link offers. Needs no account.
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: The link
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicLink" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/public/{token}/unlock:
+    post:
+      operationId: unlockPublicLink
+      summary: Send a link's password. Success sets a cookie valid only for this link.
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LinkPassword" }
+      responses:
+        "204": { description: Unlocked }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+  /api/public/{token}/buckets:
+    get:
+      operationId: getPublicBuckets
+      summary: Months in a public album
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Months
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimelineBuckets" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/public/{token}/buckets/{month}:
+    get:
+      operationId: getPublicBucket
+      summary: Assets of one month in a public album
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+        - { name: month, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Assets
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimelineBucket" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/public/{token}/assets/{id}:
+    get:
+      operationId: getPublicAsset
+      summary: An asset in a public album, without what the link does not allow
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: The asset
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AssetDetail" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/public/{token}/assets/{id}/thumbnail:
+    get:
+      operationId: getPublicThumbnail
+      summary: A preview from a public album, with the link's watermark if it has one
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - name: size
+          in: query
+          schema: { type: string, enum: [small, large, full], default: small }
+      responses:
+        "200":
+          description: Image
+          content:
+            image/webp:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/public/{token}/assets/{id}/original:
+    get:
+      operationId: getPublicOriginal
+      summary: Download an original. Counts toward the link's limit.
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: download, in: query, schema: { type: boolean } }
+      responses:
+        "200":
+          description: File
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/public/{token}/assets/{id}/motion:
+    get:
+      operationId: getPublicMotion
+      summary: The video inside a Motion Photo in a public album
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Video
+          content:
+            video/mp4:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/public/{token}/assets/{id}/video/{file}:
+    get:
+      operationId: getPublicVideoFile
+      summary: HLS files of a video in a public album
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: file, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: File
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/public/{token}/uploads:
+    post:
+      operationId: createPublicUpload
+      summary: Send one whole file to a public album (tus 1.0 creation with upload)
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+      responses:
+        "201": { description: Received }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+  /api/collections/{scope}/buckets:
+    get:
+      operationId: getCollectionBuckets
+      summary: Months in the archive, the trash or the unlocked vault
+      parameters:
+        - { name: scope, in: path, required: true, schema: { type: string, enum: [archive, trash, vault] } }
+      responses:
+        "200":
+          description: Months
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimelineBuckets" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/collections/{scope}/buckets/{month}:
+    get:
+      operationId: getCollectionBucket
+      summary: Assets of one month in a collection
+      parameters:
+        - { name: scope, in: path, required: true, schema: { type: string, enum: [archive, trash, vault] } }
+        - { name: month, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Assets
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimelineBucket" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/collections/{scope}/assets/{id}:
+    get:
+      operationId: getCollectionAsset
+      summary: An asset in a collection
+      parameters:
+        - { name: scope, in: path, required: true, schema: { type: string, enum: [archive, trash, vault] } }
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: The asset
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AssetDetail" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/collections/{scope}/assets/{id}/thumbnail:
+    get:
+      operationId: getCollectionThumbnail
+      summary: A preview of an asset in a collection
+      parameters:
+        - { name: scope, in: path, required: true, schema: { type: string, enum: [archive, trash, vault] } }
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - name: size
+          in: query
+          schema: { type: string, enum: [small, large, full], default: small }
+      responses:
+        "200":
+          description: Image
+          content:
+            image/webp:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/collections/{scope}/assets/{id}/original:
+    get:
+      operationId: getCollectionOriginal
+      summary: The original of an asset in a collection
+      parameters:
+        - { name: scope, in: path, required: true, schema: { type: string, enum: [archive, trash, vault] } }
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: download, in: query, schema: { type: boolean } }
+      responses:
+        "200":
+          description: File
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/collections/{scope}/assets/{id}/motion:
+    get:
+      operationId: getCollectionMotion
+      summary: The video inside a Motion Photo in a collection
+      parameters:
+        - { name: scope, in: path, required: true, schema: { type: string, enum: [archive, trash, vault] } }
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Video
+          content:
+            video/mp4:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/collections/{scope}/assets/{id}/video/{file}:
+    get:
+      operationId: getCollectionVideoFile
+      summary: HLS files of a video in a collection
+      parameters:
+        - { name: scope, in: path, required: true, schema: { type: string, enum: [archive, trash, vault] } }
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: file, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: File
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/trash/empty:
+    post:
+      operationId: emptyTrash
+      summary: Permanently delete everything in the trash
+      responses:
+        "200":
+          description: How many were deleted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BulkResponse" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/vault/status:
+    get:
+      operationId: getVaultStatus
+      summary: Whether the vault has a PIN and is unlocked
+      responses:
+        "200":
+          description: The state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VaultStatus" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/vault/pin:
+    post:
+      operationId: setVaultPin
+      summary: Set the vault PIN. Changing it needs the current one.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VaultPinChange" }
+      responses:
+        "204": { description: Saved }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+  /api/vault/unlock:
+    post:
+      operationId: unlockVault
+      summary: Unlock the vault for a short time
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VaultUnlock" }
+      responses:
+        "200":
+          description: Unlocked. The token is for clients that cannot keep the cookie.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VaultSession" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+  /api/vault/lock:
+    post:
+      operationId: lockVault
+      summary: Lock the vault again
+      responses:
+        "204": { description: Locked }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/tags:
+    get:
+      operationId: listTags
+      summary: The current user's tags
+      responses:
+        "200":
+          description: Tags
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Tag" } }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/tags/{id}:
+    delete:
+      operationId: deleteTag
+      summary: Delete a tag. The photos stay.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: Deleted }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/tags/{id}/buckets:
+    get:
+      operationId: getTagBuckets
+      summary: Months with photos carrying a tag
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Months
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimelineBuckets" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/tags/{id}/buckets/{month}:
+    get:
+      operationId: getTagBucket
+      summary: Photos carrying a tag in one month
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: month, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Assets
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimelineBucket" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/assets/tags:
+    post:
+      operationId: changeAssetTags
+      summary: Add a tag to the user's own assets, or remove it
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AssetTagChange" }
+      responses:
+        "200":
+          description: How many changed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BulkResponse" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/map/points:
+    get:
+      operationId: getMapPoints
+      summary: Photos with a location that this user may see, oldest first
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: Parallel lists, which stay small for a large library
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MapPoints" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/map/trips:
+    get:
+      operationId: getMapTrips
+      summary: Journeys found from the time and distance between photos
+      responses:
+        "200":
+          description: Trips, newest first
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Trip" } }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/map/style:
+    get:
+      operationId: getMapStyle
+      summary: Where the map's background comes from
+      responses:
+        "200":
+          description: Style addresses
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MapStyle" }
+        "401": { $ref: "#/components/responses/Error" }
+    put:
+      operationId: setMapStyle
+      summary: Choose the map's background. Administrators only. Empty goes back to the default.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MapStyle" }
+      responses:
+        "200":
+          description: Style addresses
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MapStyle" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /api/search:
+    get:
+      operationId: searchAssets
+      summary: Search in natural language. Dates, people, places and cameras in the query become filters.
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Results, best first
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SearchResult" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/people:
+    get:
+      operationId: listPeople
+      summary: People recognised in the current user's library
+      responses:
+        "200":
+          description: People
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PeopleList" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/people/{id}:
+    patch:
+      operationId: updatePerson
+      summary: Name or hide a person
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PersonUpdate" }
+      responses:
+        "204": { description: Saved }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/people/{id}/merge:
+    post:
+      operationId: mergePeople
+      summary: Treat other people as this one
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AssetIds" }
+      responses:
+        "204": { description: Merged }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/people/{id}/thumbnail:
+    get:
+      operationId: getPersonThumbnail
+      summary: A picture of this person's face
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Image
+          content:
+            image/webp:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/people/{id}/buckets:
+    get:
+      operationId: getPersonBuckets
+      summary: Months with this person
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Months
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimelineBuckets" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/people/{id}/buckets/{month}:
+    get:
+      operationId: getPersonBucket
+      summary: Photos of this person in one month
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: month, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Assets
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimelineBucket" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/admin/analysis:
+    get:
+      operationId: getAnalysisProgress
+      summary: How far picture analysis has come. Administrators only.
+      responses:
+        "200":
+          description: Progress
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AnalysisProgress" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /api/assets/{id}/stack:
+    delete:
+      operationId: dissolveStack
+      summary: Split a stack back into single shots. It is not put together again by itself
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: Split }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/assets/{id}/stack/main:
+    put:
+      operationId: setStackMain
+      summary: Make this shot the one the timeline shows
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: Changed }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/duplicates:
+    get:
+      operationId: listDuplicates
+      summary: Groups of photos that look alike. Only a proposal, nothing is removed without asking
+      responses:
+        "200":
+          description: The groups, newest first
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Duplicates" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/duplicates/dismiss:
+    post:
+      operationId: dismissDuplicates
+      summary: These photos are not duplicates of each other, and are not proposed again
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AssetIds" }
+      responses:
+        "204": { description: Dismissed }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/admin/audit:
+    get:
+      operationId: listAuditLog
+      summary: Who changed what, newest first. Never the content of a request
+      parameters:
+        - { name: before, in: query, description: "Entries older than this id", schema: { type: integer, format: int64 } }
+        - { name: limit, in: query, schema: { type: integer } }
+      responses:
+        "200":
+          description: The entries
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/AuditEntry" } }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /api/admin/jobs:
+    get:
+      operationId: getAdminJobs
+      summary: The job queues, and the jobs that gave up
+      responses:
+        "200":
+          description: Queues and failed jobs
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminJobs" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /api/admin/jobs/queues/{queue}/pause:
+    post:
+      operationId: pauseJobQueue
+      summary: Stop starting jobs from this queue
+      parameters:
+        - { name: queue, in: path, required: true, schema: { type: string } }
+      responses:
+        "204": { description: Paused }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/admin/jobs/queues/{queue}/resume:
+    post:
+      operationId: resumeJobQueue
+      summary: Continue a paused queue
+      parameters:
+        - { name: queue, in: path, required: true, schema: { type: string } }
+      responses:
+        "204": { description: Resumed }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/admin/jobs/{id}/retry:
+    post:
+      operationId: retryJob
+      summary: Try a failed job again
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        "204": { description: Queued again }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/admin/health:
+    get:
+      operationId: getAdminHealth
+      summary: Whether the worker and the analysis service are running
+      responses:
+        "200":
+          description: The state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminHealth" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /api/admin/storage:
+    get:
+      operationId: getAdminStorage
+      summary: How much each user stores
+      responses:
+        "200":
+          description: One row per user, the largest first
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/UserStorage" } }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /api/admin/users/{id}/quota:
+    put:
+      operationId: setUserQuota
+      summary: Set how much a user may store. Without a value there is no limit
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/QuotaUpdate" }
+      responses:
+        "204": { description: Saved }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/trash/summary:
+    get:
+      operationId: getTrashSummary
+      summary: What emptying the trash would remove
+      responses:
+        "200":
+          description: Count and size
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TrashSummary" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/auth/methods:
+    get:
+      operationId: getAuthMethods
+      summary: The ways of signing in that this address offers, besides a password
+      responses:
+        "200":
+          description: The methods
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthMethods" }
+  /api/auth/oidc/start:
+    get:
+      operationId: startOIDC
+      summary: Go to the identity provider
+      parameters:
+        - { name: next, in: query, schema: { type: string } }
+        - { name: appChallenge, in: query, description: "SHA-256 of a secret the app keeps, base64url", schema: { type: string } }
+      responses:
+        "302": { description: To the provider }
+        "404": { $ref: "#/components/responses/Error" }
+        "502": { $ref: "#/components/responses/Error" }
+  /api/auth/oidc/callback:
+    get:
+      operationId: finishOIDC
+      summary: Where the identity provider sends the browser back
+      parameters:
+        - { name: code, in: query, schema: { type: string } }
+        - { name: state, in: query, schema: { type: string } }
+      responses:
+        "302": { description: "Into the library, or back to sign-in" }
+  /api/auth/oidc/exchange:
+    post:
+      operationId: exchangeOIDC
+      summary: The app turns a one-time code into a session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OIDCExchange" }
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/admin/oidc:
+    get:
+      operationId: getOIDCSettings
+      summary: Single sign-on settings, without the secret
+      responses:
+        "200":
+          description: The settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OIDCSettings" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+    put:
+      operationId: setOIDCSettings
+      summary: Change single sign-on. An empty issuer turns it off
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OIDCSettingsUpdate" }
+      responses:
+        "200":
+          description: The settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OIDCSettings" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /api/me/passkeys:
+    get:
+      operationId: listPasskeys
+      summary: The current user's passkeys
+      responses:
+        "200":
+          description: The passkeys
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Passkey" } }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/me/passkeys/{id}:
+    delete:
+      operationId: deletePasskey
+      summary: Remove a passkey
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: Removed }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/me/passkeys/begin:
+    post:
+      operationId: beginPasskeyRegistration
+      summary: Start adding a passkey, which takes the account's password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PasswordConfirm" }
+      responses:
+        "200":
+          description: The answer
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+        "204": { description: Done }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/me/passkeys/finish:
+    post:
+      operationId: finishPasskeyRegistration
+      summary: Finish adding a passkey
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        "200":
+          description: The answer
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+        "204": { description: Done }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/auth/passkey/begin:
+    post:
+      operationId: beginPasskeyLogin
+      summary: Start signing in with a passkey
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        "200":
+          description: The answer
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+        "204": { description: Done }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/auth/passkey/finish:
+    post:
+      operationId: finishPasskeyLogin
+      summary: Finish signing in with a passkey
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        "200":
+          description: The answer
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+        "204": { description: Done }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/admin/imports:
+    get:
+      operationId: listImports
+      summary: Imports, the newest first
+      responses:
+        "200":
+          description: The imports
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/ImportEntry" } }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createImport
+      summary: Bring a library in from Immich, Google Takeout or an iCloud export
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ImportCreate" }
+      responses:
+        "201":
+          description: Started
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: { type: string } }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /api/admin/imports/{id}/cancel:
+    post:
+      operationId: cancelImport
+      summary: Stop an import. What it has brought in stays
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: Stopped }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /api/features:
+    get:
+      operationId: getFeatures
+      summary: Which additions the administrator has turned on
+      responses:
+        "200":
+          description: Each feature and whether it is on
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Features" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/admin/features/{name}:
+    put:
+      operationId: setFeature
+      summary: Turn an addition on or off
+      parameters:
+        - { name: name, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FeatureUpdate" }
+      responses:
+        "204": { description: Saved }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/admin/backup:
+    get:
+      operationId: getBackupSettings
+      summary: Where backups go, without any secret
+      responses:
+        "200":
+          description: The settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BackupSettings" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+    put:
+      operationId: setBackupSettings
+      summary: Change where backups go. A secret left out stays as it was
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BackupSettingsUpdate" }
+      responses:
+        "200":
+          description: The settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BackupSettings" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /api/admin/backup/runs:
+    get:
+      operationId: listBackupRuns
+      summary: Backups and tests of bringing one back, the newest first
+      responses:
+        "200":
+          description: The runs
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/BackupRun" } }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: startBackupRun
+      summary: Back up now, or test bringing the newest backup back
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BackupRunRequest" }
+      responses:
+        "202": { description: Started }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/admin/webhooks:
+    get:
+      operationId: listWebhooks
+      summary: Addresses told about events, without their secrets
+      responses:
+        "200":
+          description: The webhooks
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Webhook" } }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createWebhook
+      summary: Add an address. Its signing secret is shown only once
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WebhookCreate" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WebhookCreated" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /api/admin/webhooks/{id}:
+    delete:
+      operationId: deleteWebhook
+      summary: Stop telling this address
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: Removed }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /api/admin/webhooks/{id}/test:
+    post:
+      operationId: testWebhook
+      summary: Send a test event now
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "202": { description: Queued }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/family:
+    get:
+      operationId: getFamily
+      summary: The family library, and what this user shares with it
+      responses:
+        "200":
+          description: The state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Family" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/family/rules:
+    post:
+      operationId: createFamilyRule
+      summary: Share what matches a rule with the family. Photos are not copied
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FamilyRuleCreate" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: { type: string } }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /api/family/rules/{id}:
+    delete:
+      operationId: deleteFamilyRule
+      summary: Stop sharing what this rule covers
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: Stopped }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/family/buckets:
+    get:
+      operationId: getFamilyBuckets
+      summary: Months in the family library
+      responses:
+        "200":
+          description: The months
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimelineBuckets" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /api/family/buckets/{month}:
+    get:
+      operationId: getFamilyBucket
+      summary: Assets of one month in the family library
+      parameters:
+        - { name: month, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: The assets
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimelineBucket" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /api/admin/family:
+    get:
+      operationId: listFamilyMembersAdmin
+      summary: Who is in the family library
+      responses:
+        "200":
+          description: The members
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/UserRef" } }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /api/admin/family/{userId}:
+    parameters:
+      - { name: userId, in: path, required: true, schema: { type: string, format: uuid } }
+    put:
+      operationId: addFamilyMember
+      summary: Add someone to the family library
+      responses:
+        "204": { description: Added }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: removeFamilyMember
+      summary: Remove someone. Their photos stay in their own library
+      responses:
+        "204": { description: Removed }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /api/search/ask:
+    post:
+      operationId: askSearch
+      summary: Turn a question into words to search for, with the local model
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AskRequest" }
+      responses:
+        "200":
+          description: What to search for
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AskAnswer" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/admin/ai:
+    get:
+      operationId: getAISettings
+      summary: The local Ollama server and how far descriptions have come
+      responses:
+        "200":
+          description: The settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AISettings" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+    put:
+      operationId: setAISettings
+      summary: Name the Ollama server. Previews of photos are sent to it
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AISettingsUpdate" }
+      responses:
+        "200":
+          description: The settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AISettings" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /api/admin/external:
+    get:
+      operationId: getExternalLibrary
+      summary: The folder given as EXTERNAL_LIBRARY_PATH, and how it is doing
+      responses:
+        "200":
+          description: Its state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExternalLibrary" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+    put:
+      operationId: setExternalLibrary
+      summary: Choose whose photos the folder holds, and start reading it
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ExternalLibraryOwner" }
+      responses:
+        "200":
+          description: Its state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExternalLibrary" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/admin/external/scan:
+    post:
+      operationId: scanExternalLibrary
+      summary: Look through the folder for changes now
+      responses:
+        "202": { description: Started }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/folders:
+    get:
+      operationId: getFolder
+      summary: One folder of the external library, for the user who owns it
+      parameters:
+        - { name: path, in: query, description: "Relative to the library. Empty is its top", schema: { type: string } }
+      responses:
+        "200":
+          description: Its folders and photos
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Folder" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/assets/{id}/edits:
+    put:
+      operationId: setAssetEdits
+      summary: Replace the list of edits of a photo. The original is never changed
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AssetEdits" }
+      responses:
+        "204": { description: Saved. New previews follow shortly }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: clearAssetEdits
+      summary: Go back to the photo as it was taken
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: Cleared. New previews follow shortly }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/documents:
+    get:
+      operationId: getDocuments
+      summary: Photos of documents, found by the text on them
+      responses:
+        "200":
+          description: The album
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Documents" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/memories:
+    get:
+      operationId: listMemories
+      summary: On this day in earlier years, and the last week
+      parameters:
+        - { name: date, in: query, description: "The user's own date, which decides what today is", schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: Memories, newest first
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Memory" } }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/stories:
+    post:
+      operationId: createStoryExport
+      summary: Make a video of the chosen photos. Runs in the background.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StoryRequest" }
+      responses:
+        "202":
+          description: Started
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StoryExport" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/stories/{id}:
+    get:
+      operationId: getStoryExport
+      summary: How a video is coming along
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: The state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StoryExport" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /api/stories/{id}/video:
+    get:
+      operationId: getStoryVideo
+      summary: The finished video
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Video
+          content:
+            video/mp4:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+components:
+  responses:
+    Error:
+      description: The request failed
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Duplicates:
+      type: object
+      required: [groups, total, pending]
+      properties:
+        total: { type: integer, description: "All groups, of which at most the first 100 are listed" }
+        pending: { type: integer, description: "Photos not compared yet" }
+        groups:
+          type: array
+          items: { $ref: "#/components/schemas/DuplicateGroup" }
+    DuplicateGroup:
+      type: object
+      required: [items, keepId]
+      properties:
+        keepId: { type: string, format: uuid, description: "The largest one, proposed to keep" }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/DuplicateItem" }
+    DuplicateItem:
+      type: object
+      required: [id, originalName, sizeBytes, ratio, localAt]
+      properties:
+        id: { type: string, format: uuid }
+        originalName: { type: string }
+        sizeBytes: { type: integer, format: int64 }
+        width: { type: integer }
+        height: { type: integer }
+        ratio: { type: number, format: float }
+        localAt: { type: string }
+    ExternalLibrary:
+      type: object
+      required: [available, assets, missing, scanning]
+      properties:
+        available: { type: boolean, description: "A folder was given in .env and can be read" }
+        ownerId: { type: string, format: uuid }
+        assets: { type: integer, format: int64 }
+        missing: { type: integer, format: int64, description: "Records whose file was not found. They are kept" }
+        scanning: { type: boolean }
+        scanFinishedAt: { type: string, format: date-time }
+        scanError: { type: string }
+    ExternalLibraryOwner:
+      type: object
+      required: [ownerId]
+      properties:
+        ownerId: { type: string, format: uuid }
+    Folder:
+      type: object
+      required: [available, path, folders, items]
+      properties:
+        available: { type: boolean, description: "This user owns an external library" }
+        path: { type: string }
+        folders:
+          type: array
+          items: { $ref: "#/components/schemas/FolderEntry" }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/TimelineItem" }
+    FolderEntry:
+      type: object
+      required: [name, count, coverId]
+      properties:
+        name: { type: string }
+        count: { type: integer, format: int64, description: "Photos anywhere inside it" }
+        coverId: { type: string, format: uuid }
+    AssetEdits:
+      type: object
+      properties:
+        rotate: { type: integer, description: "Clockwise: 0, 90, 180 or 270" }
+        crop: { $ref: "#/components/schemas/CropBox" }
+        brightness: { type: integer, minimum: -100, maximum: 100 }
+        contrast: { type: integer, minimum: -100, maximum: 100 }
+        saturation: { type: integer, minimum: -100, maximum: 100 }
+        filter: { type: string, enum: [mono, warm, cool, vintage, vivid] }
+    CropBox:
+      type: object
+      description: A part of the rotated picture, in fractions of its sides
+      required: [x, y, width, height]
+      properties:
+        x: { type: number, format: double }
+        y: { type: number, format: double }
+        width: { type: number, format: double }
+        height: { type: number, format: double }
+    AuditEntry:
+      type: object
+      required: [id, at, userEmail, method, route, target, status, ip]
+      properties:
+        id: { type: integer, format: int64 }
+        at: { type: string, format: date-time }
+        userEmail: { type: string }
+        method: { type: string }
+        route: { type: string }
+        target: { type: string }
+        status: { type: integer }
+        ip: { type: string }
+    ApiKey:
+      type: object
+      required: [id, name, scopes, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        scopes: { type: array, items: { type: string, enum: [read, upload, write, admin] } }
+        createdAt: { type: string, format: date-time }
+        lastUsedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+    ApiKeyCreate:
+      type: object
+      required: [name, scopes]
+      properties:
+        name: { type: string }
+        scopes: { type: array, items: { type: string, enum: [read, upload, write, admin] } }
+        expiresInDays: { type: integer, minimum: 1, maximum: 3650 }
+    AdminJobs:
+      type: object
+      required: [queues, failed]
+      properties:
+        queues: { type: array, items: { $ref: "#/components/schemas/JobQueue" } }
+        failed: { type: array, items: { $ref: "#/components/schemas/FailedJob" } }
+    JobQueue:
+      type: object
+      required: [name, paused, queued, running]
+      properties:
+        name: { type: string }
+        paused: { type: boolean }
+        queued: { type: integer, format: int64 }
+        running: { type: integer, format: int64 }
+    FailedJob:
+      type: object
+      required: [id, kind, queue, error, at]
+      properties:
+        id: { type: integer, format: int64 }
+        kind: { type: string }
+        queue: { type: string }
+        error: { type: string }
+        at: { type: string, format: date-time }
+    AdminHealth:
+      type: object
+      required: [workerRunning, mlEnabled, databaseBytes]
+      properties:
+        workerRunning: { type: boolean }
+        workerLastSeen: { type: string, format: date-time }
+        mlEnabled: { type: boolean }
+        mlRunning: { type: boolean }
+        databaseBytes: { type: integer, format: int64 }
+    UserStorage:
+      type: object
+      required: [id, name, email, storedBytes, assets]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: string }
+        storedBytes: { type: integer, format: int64 }
+        assets: { type: integer, format: int64 }
+        quotaBytes: { type: integer, format: int64 }
+    QuotaUpdate:
+      type: object
+      properties:
+        quotaBytes: { type: integer, format: int64 }
+    TrashSummary:
+      type: object
+      required: [assets, bytes]
+      properties:
+        assets: { type: integer, format: int64 }
+        bytes: { type: integer, format: int64 }
+    AuthMethods:
+      type: object
+      required: [passkeys]
+      properties:
+        passkeys: { type: boolean, description: "This address can use passkeys: HTTPS and a domain name" }
+        ssoLabel: { type: string, description: "The name of the single sign-on button, if it is turned on" }
+    OIDCExchange:
+      type: object
+      required: [code, verifier]
+      properties:
+        code: { type: string }
+        verifier: { type: string }
+    OIDCSettings:
+      type: object
+      required: [issuer, clientId, label, autoCreate, hasSecret, linkAdmins]
+      properties:
+        issuer: { type: string }
+        clientId: { type: string }
+        label: { type: string }
+        autoCreate: { type: boolean, description: "A person without an account gets one on first sign-in" }
+        linkAdmins: { type: boolean, description: "Also link administrators by email. Off is safer" }
+        hasSecret: { type: boolean }
+    OIDCSettingsUpdate:
+      type: object
+      required: [issuer, clientId, label, autoCreate]
+      properties:
+        issuer: { type: string }
+        clientId: { type: string }
+        label: { type: string }
+        autoCreate: { type: boolean }
+        secret: { type: string, description: "Left out keeps the one that is saved" }
+        linkAdmins: { type: boolean }
+    Passkey:
+      type: object
+      required: [id, name, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        createdAt: { type: string, format: date-time }
+        lastUsedAt: { type: string, format: date-time }
+    ImportCreate:
+      type: object
+      required: [source, ownerId]
+      properties:
+        source: { type: string, enum: [immich, takeout, icloud] }
+        ownerId: { type: string, format: uuid, description: "Whose library it goes into" }
+        address: { type: string, description: "Immich only" }
+        apiKey: { type: string, description: "Immich only. Forgotten when the import ends" }
+        folder: { type: string, description: "Takeout and iCloud: an unpacked folder inside the external library's mount" }
+    ImportEntry:
+      type: object
+      required: [id, userEmail, source, status, added, skipped, failed, lastError, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        userEmail: { type: string }
+        source: { type: string, enum: [immich, takeout, icloud] }
+        status: { type: string, enum: [running, done, failed, cancelled] }
+        added: { type: integer }
+        skipped: { type: integer, description: "Already there, or deleted at the source" }
+        failed: { type: integer }
+        lastError: { type: string }
+        createdAt: { type: string, format: date-time }
+        finishedAt: { type: string, format: date-time }
+    Features:
+      type: object
+      additionalProperties: { type: boolean }
+    FeatureUpdate:
+      type: object
+      required: [enabled]
+      properties:
+        enabled: { type: boolean }
+    BackupSettings:
+      type: object
+      required: [repository, hour, hasPassword, hasS3Key, localFolder]
+      properties:
+        repository: { type: string }
+        hour: { type: integer, description: "The hour of the day, by the server's clock" }
+        hasPassword: { type: boolean }
+        hasS3Key: { type: boolean }
+        localFolder: { type: string, description: "Where BACKUP_PATH from .env is mounted" }
+    BackupSettingsUpdate:
+      type: object
+      required: [repository, hour]
+      properties:
+        repository: { type: string }
+        hour: { type: integer }
+        password: { type: string }
+        s3Key: { type: string }
+        s3Secret: { type: string }
+    BackupRunRequest:
+      type: object
+      required: [kind]
+      properties:
+        kind: { type: string, enum: [backup, restore_test] }
+    BackupRun:
+      type: object
+      required: [id, kind, status, message, files, startedAt]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [backup, restore_test] }
+        status: { type: string, enum: [running, done, failed] }
+        message: { type: string }
+        files: { type: integer, format: int64 }
+        startedAt: { type: string, format: date-time }
+        finishedAt: { type: string, format: date-time }
+    Documents:
+      type: object
+      required: [enabled, analysisOn, items]
+      properties:
+        enabled: { type: boolean, description: "The administrator has turned this on" }
+        analysisOn: { type: boolean, description: "Picture analysis runs, without which no text is read" }
+        items: { type: array, items: { $ref: "#/components/schemas/TimelineItem" } }
+    Webhook:
+      type: object
+      required: [id, url, events, lastStatus, lastError]
+      properties:
+        id: { type: string, format: uuid }
+        url: { type: string }
+        events: { type: array, items: { type: string, enum: [asset.ready, person.created, backup.finished] } }
+        lastStatus: { type: integer }
+        lastError: { type: string }
+        lastAt: { type: string, format: date-time }
+    WebhookCreate:
+      type: object
+      required: [url, events]
+      properties:
+        url: { type: string }
+        events: { type: array, items: { type: string, enum: [asset.ready, person.created, backup.finished] } }
+    WebhookCreated:
+      type: object
+      required: [id, secret]
+      properties:
+        id: { type: string, format: uuid }
+        secret: { type: string }
+    Family:
+      type: object
+      required: [enabled, member, members, rules]
+      properties:
+        enabled: { type: boolean }
+        member: { type: boolean }
+        members: { type: array, items: { $ref: "#/components/schemas/UserRef" } }
+        rules: { type: array, items: { $ref: "#/components/schemas/FamilyRule" } }
+    FamilyRule:
+      type: object
+      required: [id, title, rules]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        rules: { $ref: "#/components/schemas/AlbumRules" }
+    FamilyRuleCreate:
+      type: object
+      required: [title, rules]
+      properties:
+        title: { type: string }
+        rules: { $ref: "#/components/schemas/AlbumRules" }
+    AskRequest:
+      type: object
+      required: [question]
+      properties:
+        question: { type: string }
+    AskAnswer:
+      type: object
+      required: [query]
+      properties:
+        query: { type: string }
+    AISettings:
+      type: object
+      required: [address, visionModel, textModel, reachable, modelsReady, described, total]
+      properties:
+        address: { type: string }
+        visionModel: { type: string }
+        textModel: { type: string }
+        reachable: { type: boolean }
+        modelsReady: { type: boolean }
+        described: { type: integer, format: int64 }
+        total: { type: integer, format: int64 }
+    AISettingsUpdate:
+      type: object
+      required: [address, visionModel, textModel]
+      properties:
+        address: { type: string }
+        visionModel: { type: string }
+        textModel: { type: string }
+    Memory:
+      type: object
+      required: [kind, title, items]
+      properties:
+        kind: { type: string, enum: [on_this_day, week] }
+        year: { type: integer, description: "The year, for on_this_day" }
+        title: { type: string, description: "A date or date span. The client words the rest." }
+        items: { type: array, items: { $ref: "#/components/schemas/TimelineItem" } }
+    StoryRequest:
+      type: object
+      required: [title, ids]
+      properties:
+        title: { type: string }
+        ids: { type: array, items: { type: string, format: uuid } }
+    StoryExport:
+      type: object
+      required: [id, status]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [working, ready, failed] }
+    SearchResult:
+      type: object
+      required: [items, smart, filters]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/TimelineItem" } }
+        smart: { type: boolean, description: "False when picture search is not turned on or did not answer" }
+        filters: { $ref: "#/components/schemas/SearchFilters" }
+    SearchFilters:
+      type: object
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        person: { type: string }
+        place: { type: string }
+        camera: { type: string }
+    Person:
+      type: object
+      required: [id, name, hidden, assetCount]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        hidden: { type: boolean }
+        assetCount: { type: integer, format: int64 }
+    PeopleList:
+      type: object
+      required: [enabled, people]
+      properties:
+        enabled: { type: boolean, description: "False when face recognition is not turned on" }
+        people: { type: array, items: { $ref: "#/components/schemas/Person" } }
+    PersonRef:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+    PersonUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        hidden: { type: boolean }
+    AnalysisProgress:
+      type: object
+      required: [enabled, total, analyzed]
+      properties:
+        enabled: { type: boolean }
+        total: { type: integer, format: int64 }
+        analyzed: { type: integer, format: int64 }
+    MapPoints:
+      type: object
+      required: [ids, kinds, lats, lons]
+      properties:
+        ids: { type: array, items: { type: string, format: uuid } }
+        kinds: { type: array, items: { type: string } }
+        lats: { type: array, items: { type: number, format: double } }
+        lons: { type: array, items: { type: number, format: double } }
+    Trip:
+      type: object
+      required: [from, to, count, coverId, lat, lon, places]
+      properties:
+        from: { type: string, description: "Local date: 2006-01-02" }
+        to: { type: string, description: "Local date: 2006-01-02" }
+        count: { type: integer }
+        coverId: { type: string, format: uuid }
+        lat: { type: number, format: double }
+        lon: { type: number, format: double }
+        places: { type: array, items: { type: string } }
+    MapStyle:
+      type: object
+      required: [light, dark]
+      properties:
+        light: { type: string }
+        dark: { type: string }
+    VaultStatus:
+      type: object
+      required: [hasPin, unlocked]
+      properties:
+        hasPin: { type: boolean }
+        unlocked: { type: boolean }
+    VaultPinChange:
+      type: object
+      required: [pin]
+      properties:
+        pin: { type: string }
+        currentPin: { type: string }
+    VaultUnlock:
+      type: object
+      required: [pin]
+      properties:
+        pin: { type: string }
+    VaultSession:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string }
+    Tag:
+      type: object
+      required: [id, name, assetCount]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        assetCount: { type: integer, format: int64 }
+    AssetTagChange:
+      type: object
+      required: [ids, name]
+      properties:
+        ids: { type: array, items: { type: string, format: uuid } }
+        name: { type: string }
+        remove: { type: boolean, default: false }
+    UserRef:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+    AlbumRules:
+      type: object
+      description: "Conditions that must all hold."
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        kind: { type: string, enum: [photo, video, live] }
+        camera: { type: string }
+        person: { type: string, format: uuid }
+        tag: { type: string, format: uuid }
+        place: { type: string }
+    AlbumMember:
+      type: object
+      required: [userId, name, role]
+      properties:
+        userId: { type: string, format: uuid }
+        name: { type: string }
+        role: { type: string, enum: [viewer, contributor, editor] }
+    Album:
+      type: object
+      required: [id, title, description, role, ownerId, ownerName, assetCount, order, isSmart, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        description: { type: string }
+        role: { type: string, enum: [owner, editor, contributor, viewer] }
+        ownerId: { type: string, format: uuid }
+        ownerName: { type: string }
+        assetCount: { type: integer, format: int64 }
+        coverAssetId: { type: string, format: uuid }
+        order: { type: string, enum: [newest, oldest] }
+        isSmart: { type: boolean }
+        rules: { $ref: "#/components/schemas/AlbumRules" }
+        members: { type: array, items: { $ref: "#/components/schemas/AlbumMember" } }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    AlbumCreate:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string }
+        description: { type: string }
+        rules: { $ref: "#/components/schemas/AlbumRules" }
+    AlbumUpdate:
+      type: object
+      properties:
+        title: { type: string }
+        description: { type: string }
+        coverAssetId: { type: string, format: uuid }
+        order: { type: string, enum: [newest, oldest] }
+        rules: { $ref: "#/components/schemas/AlbumRules" }
+    AssetIds:
+      type: object
+      required: [ids]
+      properties:
+        ids: { type: array, items: { type: string, format: uuid } }
+    MemberRole:
+      type: object
+      required: [role]
+      properties:
+        role: { type: string, enum: [viewer, contributor, editor] }
+    Comment:
+      type: object
+      required: [id, userId, userName, body, createdAt, canDelete]
+      properties:
+        id: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        userName: { type: string }
+        body: { type: string }
+        createdAt: { type: string, format: date-time }
+        canDelete: { type: boolean }
+    Activity:
+      type: object
+      required: [comments, hearts, hearted]
+      properties:
+        comments: { type: array, items: { $ref: "#/components/schemas/Comment" } }
+        hearts: { type: integer, format: int64 }
+        hearted: { type: boolean }
+    CommentCreate:
+      type: object
+      required: [body]
+      properties:
+        body: { type: string }
+        assetId: { type: string, format: uuid }
+    ShareLink:
+      type: object
+      required: [id, label, hasPassword, downloadCount, allowDownload, allowUpload, uploadOnly, showLocation, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        token: { type: string, description: Returned only when the link is created }
+        label: { type: string }
+        hasPassword: { type: boolean }
+        expiresAt: { type: string, format: date-time }
+        downloadLimit: { type: integer }
+        downloadCount: { type: integer }
+        allowDownload: { type: boolean }
+        allowUpload: { type: boolean }
+        uploadOnly: { type: boolean }
+        showLocation: { type: boolean }
+        watermark: { type: string }
+        createdAt: { type: string, format: date-time }
+    ShareLinkCreate:
+      type: object
+      properties:
+        label: { type: string }
+        password: { type: string }
+        expiresAt: { type: string, format: date-time }
+        downloadLimit: { type: integer, minimum: 1 }
+        allowDownload: { type: boolean, default: true }
+        allowUpload: { type: boolean, default: false }
+        uploadOnly: { type: boolean, default: false }
+        showLocation: { type: boolean, default: false }
+        watermark: { type: string }
+    PublicLink:
+      type: object
+      required: [locked, allowDownload, allowUpload, uploadOnly, watermarked, kiosk]
+      properties:
+        locked: { type: boolean, description: A password is needed first. Nothing else is told until then. }
+        title: { type: string }
+        description: { type: string }
+        allowDownload: { type: boolean }
+        allowUpload: { type: boolean }
+        uploadOnly: { type: boolean }
+        watermarked: { type: boolean }
+        kiosk: { type: boolean, description: "This server allows this link as a slideshow" }
+    LinkPassword:
+      type: object
+      required: [password]
+      properties:
+        password: { type: string }
+    PartnerEntry:
+      type: object
+      required: [userId, name, inTimeline]
+      properties:
+        userId: { type: string, format: uuid }
+        name: { type: string }
+        since: { type: string, format: date }
+        inTimeline: { type: boolean }
+    Partners:
+      type: object
+      required: [given, received]
+      properties:
+        given: { type: array, items: { $ref: "#/components/schemas/PartnerEntry" } }
+        received: { type: array, items: { $ref: "#/components/schemas/PartnerEntry" } }
+    PartnerShare:
+      type: object
+      properties:
+        since: { type: string, format: date }
+    PartnerTimeline:
+      type: object
+      required: [show]
+      properties:
+        show: { type: boolean }
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [ok, unavailable] }
+    Error:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
+    LoginError:
+      type: object
+      required: [message, totpRequired]
+      properties:
+        message: { type: string }
+        totpRequired: { type: boolean }
+    AuthStatus:
+      type: object
+      required: [setupRequired]
+      properties:
+        setupRequired: { type: boolean }
+        user: { $ref: "#/components/schemas/User" }
+    User:
+      type: object
+      required: [id, email, name, isAdmin, totpEnabled]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string }
+        name: { type: string }
+        isAdmin: { type: boolean }
+        totpEnabled: { type: boolean }
+    SetupRequest:
+      type: object
+      required: [email, name, password]
+      properties:
+        email: { type: string }
+        name: { type: string }
+        password: { type: string }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string }
+        password: { type: string }
+        totpCode: { type: string }
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword: { type: string }
+        newPassword: { type: string }
+    CreateUserRequest:
+      type: object
+      required: [email, name, password, isAdmin]
+      properties:
+        email: { type: string }
+        name: { type: string }
+        password: { type: string }
+        isAdmin: { type: boolean }
+    CreateDeviceKeyRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+    DeviceKey:
+      type: object
+      required: [id, key]
+      properties:
+        id: { type: string, format: uuid }
+        key: { type: string }
+    TotpSetup:
+      type: object
+      required: [secret, uri]
+      properties:
+        secret: { type: string }
+        uri: { type: string }
+    TotpCode:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string }
+    PasswordConfirm:
+      type: object
+      required: [password]
+      properties:
+        password: { type: string }
+    AdminOverview:
+      type: object
+      required: [users, photos, videos, processing, failed, libraryBytes, diskTotalBytes, diskFreeBytes, jobs, version, databaseVersion]
+      properties:
+        users: { type: integer, format: int64 }
+        photos: { type: integer, format: int64 }
+        videos: { type: integer, format: int64 }
+        processing: { type: integer, format: int64 }
+        failed: { type: integer, format: int64 }
+        libraryBytes: { type: integer, format: int64, description: Total size of all originals }
+        diskTotalBytes: { type: integer, format: int64 }
+        diskFreeBytes: { type: integer, format: int64 }
+        jobs:
+          type: object
+          required: [queued, running, completed, failed]
+          properties:
+            queued: { type: integer, format: int64 }
+            running: { type: integer, format: int64 }
+            completed: { type: integer, format: int64 }
+            failed: { type: integer, format: int64 }
+        version: { type: string }
+        databaseVersion: { type: string }
+    Asset:
+      type: object
+      required: [id, originalName, kind, status, sizeBytes, checksum, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        originalName: { type: string }
+        kind: { type: string, enum: [unknown, photo, video] }
+        status: { type: string, enum: [processing, ready, failed] }
+        error: { type: string }
+        sizeBytes: { type: integer, format: int64 }
+        checksum: { type: string, description: Lowercase hex SHA-256 }
+        width: { type: integer }
+        height: { type: integer }
+        blurhash: { type: string }
+        takenAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+    TimelineBuckets:
+      type: object
+      required: [buckets]
+      properties:
+        buckets:
+          type: array
+          items:
+            type: object
+            required: [month, count]
+            properties:
+              month: { type: string }
+              count: { type: integer, format: int64 }
+    TimelineItem:
+      type: object
+      required: [id, kind, ratio, isFavorite, localAt]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [unknown, photo, video] }
+        ratio: { type: number, format: float, description: "Width divided by height, as displayed" }
+        blurhash: { type: string }
+        isFavorite: { type: boolean }
+        isLive: { type: boolean }
+        stackSize: { type: integer, description: "Shots in this stack, when it is one. Only the main shot shows on the timeline" }
+        isShared: { type: boolean, description: "Belongs to someone else, shared with this user" }
+        durationMs: { type: integer, format: int64 }
+        localAt: { type: string, description: "Local capture time without a zone: 2006-01-02T15:04:05" }
+    TimelineBucket:
+      type: object
+      required: [month, items]
+      properties:
+        month: { type: string }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/TimelineItem" }
+    AssetDetail:
+      type: object
+      required: [id, originalName, kind, status, sizeBytes, isFavorite, isArchived, localAt, createdAt]
+      properties:
+        isOwner: { type: boolean, description: "Only the owner can change or delete the asset" }
+        downloadAllowed: { type: boolean, description: "False on a public link that does not allow downloads" }
+        edits: { $ref: "#/components/schemas/AssetEdits" }
+        isEditing: { type: boolean, description: "New previews are being made after an edit" }
+        description: { type: string, description: "From the local model. Only for the owner" }
+        isMissing: { type: boolean, description: "The file of an external library was not found on the last scan" }
+        tags: { type: array, items: { type: string }, description: "Only for the owner" }
+        stack: { type: array, items: { type: string, format: uuid }, description: "All shots of its stack, the main one first. Only for the owner" }
+        people: { type: array, items: { $ref: "#/components/schemas/PersonRef" }, description: "Only for the owner" }
+        city: { type: string }
+        state: { type: string }
+        country: { type: string }
+        id: { type: string, format: uuid }
+        originalName: { type: string }
+        kind: { type: string, enum: [unknown, photo, video] }
+        status: { type: string, enum: [processing, ready, failed] }
+        mimeType: { type: string }
+        sizeBytes: { type: integer, format: int64 }
+        width: { type: integer }
+        height: { type: integer }
+        isFavorite: { type: boolean }
+        isArchived: { type: boolean }
+        localAt: { type: string }
+        offsetMinutes: { type: integer }
+        hasCaptureTime: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        newerId: { type: string, format: uuid }
+        olderId: { type: string, format: uuid }
+        durationMs: { type: integer, format: int64 }
+        videoCodec: { type: string }
+        hlsReady: { type: boolean, description: "The adaptive stream at video/master.m3u8 can be played" }
+        liveVideoId: { type: string, format: uuid, description: The video of a Live Photo }
+        hasMotion: { type: boolean, description: "An Android Motion Photo, with its video at /motion" }
+        sprite: { $ref: "#/components/schemas/Sprite" }
+        camera: { type: string }
+        lens: { type: string }
+        iso: { type: integer }
+        fNumber: { type: number, format: double }
+        exposureTime: { type: string }
+        focalLength: { type: number, format: double }
+        latitude: { type: number, format: double }
+        longitude: { type: number, format: double }
+    Sprite:
+      type: object
+      required: [columns, rows, count, intervalMs]
+      properties:
+        columns: { type: integer }
+        rows: { type: integer }
+        count: { type: integer }
+        intervalMs: { type: integer }
+    BulkRequest:
+      type: object
+      required: [ids, action]
+      properties:
+        ids:
+          type: array
+          maxItems: 1000
+          items: { type: string, format: uuid }
+        action: { type: string, enum: [favorite, unfavorite, archive, unarchive, delete, restore, vault, unvault, purge] }
+        dryRun: { type: boolean, description: "Only say how many it would change" }
+    BulkResponse:
+      type: object
+      required: [changed]
+      properties:
+        changed: { type: integer, format: int64 }
+    AssetList:
+      type: object
+      required: [items, total, processing, failed]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Asset" }
+        total: { type: integer, format: int64 }
+        processing: { type: integer, format: int64 }
+        failed: { type: integer, format: int64 }
+    ChecksumCheckRequest:
+      type: object
+      required: [checksums]
+      properties:
+        checksums:
+          type: array
+          maxItems: 1000
+          items: { type: string }
+    ChecksumCheckResponse:
+      type: object
+      required: [existing]
+      properties:
+        existing:
+          type: array
+          items: { type: string }
