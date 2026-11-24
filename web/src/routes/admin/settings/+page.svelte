@@ -16,7 +16,7 @@
 		type BackupSettings,
 		type Features,
 		type Webhook,
-		type AISettings
+		type DescriptionSettings
 	} from '#lib/api.ts';
 	import Alert from '#lib/design/components/Alert.svelte';
 	import Bar from '#lib/design/components/Bar.svelte';
@@ -93,7 +93,20 @@
 			);
 			return;
 		}
-		importReports = { ...importReports, [id]: await api.importDetail(id) };
+		try {
+			importReports = { ...importReports, [id]: await api.importDetail(id) };
+		} catch {
+			showToast('err', t('common.thisCouldNotBeLoaded'));
+		}
+	}
+
+	async function importAction(action: () => Promise<void>) {
+		try {
+			await action();
+		} catch (cause) {
+			showToast('err', cause instanceof Error ? cause.message : t('common.theActionFailed'));
+		}
+		await loadImports();
 	}
 	let importSource = $state<ImportCreate['source']>('immich');
 	let importOwner = $state('');
@@ -137,7 +150,7 @@
 		family: { label: k('admin.settings.familyLibrary') },
 		webhooks: { label: k('admin.settings.webhooks') },
 		kiosk: { label: k('admin.settings.kioskForTvAndTablet') },
-		descriptions: { label: k('admin.settings.aiDescriptionsAndChatSearch') }
+		descriptions: { label: k('admin.settings.autoDescriptionsAndChatSearch') }
 	};
 	let features = $state<Features>({});
 	let backup = $state<BackupSettings>();
@@ -254,10 +267,10 @@
 		}
 	}
 
-	let ai = $state<AISettings>();
+	let describing = $state<DescriptionSettings>();
 
 	async function loadAI() {
-		ai = await api.aiSettings().catch(() => ai);
+		describing = await api.descriptionSettings().catch(() => describing);
 	}
 
 	onMount(() => {
@@ -268,9 +281,13 @@
 
 	async function saveAI(event: SubmitEvent) {
 		event.preventDefault();
-		if (!ai) return;
+		if (!describing) return;
 		try {
-			ai = await api.setAISettings(ai.address, ai.visionModel, ai.textModel);
+			describing = await api.setDescriptionSettings(
+				describing.address,
+				describing.visionModel,
+				describing.textModel
+			);
 			showToast('ok', t('common.saved'));
 		} catch (cause) {
 			showToast('err', cause instanceof Error ? cause.message : t('common.theActionFailed'));
@@ -294,12 +311,13 @@
 			oidc && { id: 'sso', label: t('admin.settings.singleSignOn') },
 			{ id: 'import', label: t('common.import') },
 			{ id: 'additions', label: t('admin.settings.additions') },
-			backup && { id: 'backup', label: 'Backup' },
+			backup && { id: 'backup', label: t('admin.settings.backup') },
 			{ id: 'keep', label: t('admin.settings.aCopyAtARelative') },
 			features.family && { id: 'family', label: t('admin.settings.family') },
-			features.descriptions && ai && { id: 'ai', label: t('admin.settings.aiDescriptions') },
-			features.webhooks && { id: 'webhooks', label: 'Webhooks' },
-			{ id: 'server', label: 'Server' },
+			features.descriptions &&
+				describing && { id: 'describing', label: t('admin.settings.autoDescriptions') },
+			features.webhooks && { id: 'webhooks', label: t('admin.settings.webhooks') },
+			{ id: 'server', label: t('serverSettingsCard.server') },
 			{ id: 'email', label: t('admin.settings.email') },
 			{ id: 'map', label: t('admin.settings.map') }
 		].filter((item): item is { id: string; label: string } => Boolean(item))
@@ -313,7 +331,8 @@
 		failed: { label: k('admin.jobs.failed'), tone: 'err' },
 		cancelled: { label: k('account.import.stopped'), tone: '' }
 	};
-	const status = (value: string) => STATUS[value] ?? { hr: value, en: value, tone: '' };
+	// A state this page does not know yet is shown as the server names it.
+	const status = (value: string) => STATUS[value] ?? { label: value as Key, tone: '' };
 
 	async function save(event: SubmitEvent) {
 		event.preventDefault();
@@ -409,9 +428,11 @@
 							<code>{location.origin}/api/auth/oidc/callback</code>
 						</p>
 						<Input label={t('admin.settings.issuer')} bind:value={oidc.issuer} />
-						<Input label="Client ID" bind:value={oidc.clientId} />
+						<Input label={t('admin.settings.clientId')} bind:value={oidc.clientId} />
 						<Input
-							label={oidc.hasSecret ? t('admin.settings.clientSecretSavedTypeTo') : 'Client secret'}
+							label={oidc.hasSecret
+								? t('admin.settings.clientSecretSavedTypeTo')
+								: t('admin.settings.clientSecret')}
 							bind:value={oidcSecret}
 						/>
 						<Input label={t('admin.settings.buttonLabel')} bind:value={oidc.label} />
@@ -509,12 +530,8 @@
 							</span>
 							<span class="imp-acts">
 								{#if entry.status === 'running' || entry.status === 'uploading'}
-									<Button
-										small
-										onclick={async () => {
-											await api.cancelImport(entry.id);
-											await loadImports();
-										}}>{t('common.stop')}</Button
+									<Button small onclick={() => importAction(() => api.cancelImport(entry.id))}
+										>{t('common.stop')}</Button
 									>
 								{/if}
 								{#if entry.failed > 0}
@@ -528,10 +545,8 @@
 									<Button
 										small
 										variant="danger"
-										onclick={async () => {
-											await api.removeImport(entry.id);
-											await loadImports();
-										}}>{t('common.remove')}</Button
+										onclick={() => importAction(() => api.removeImport(entry.id))}
+										>{t('common.remove')}</Button
 									>
 								{/if}
 							</span>
@@ -557,7 +572,7 @@
 				{/each}
 			</Card>
 			{#if backup}
-				<Card id="backup" title="Backup">
+				<Card id="backup" title={t('admin.settings.backup')}>
 					{#snippet actions()}
 						<Button small onclick={() => runBackup('backup')}
 							>{t('admin.settings.backUpNow')}</Button
@@ -600,7 +615,7 @@
 									<span class="set-list-t">
 										<b
 											>{run.kind === 'backup'
-												? 'Backup'
+												? t('admin.settings.backup')
 												: t('admin.settings.restoreTest')}{run.destinationName
 												? ` → ${run.destinationName}`
 												: ''}</b
@@ -660,32 +675,41 @@
 					{/each}
 				</Card>
 			{/if}
-			{#if features.descriptions && ai}
-				<Card id="ai" title={t('admin.settings.aiDescriptionsAndQuestions')}>
+			{#if features.descriptions && describing}
+				<Card id="describing" title={t('admin.settings.autoDescriptionsAndQuestions')}>
 					<form class="form" onsubmit={saveAI}>
 						<p class="alb-meta">
 							{t('admin.settings.aLocalOllamaServerReceives')}
 						</p>
-						<Input label={t('admin.settings.ollamaAddress')} bind:value={ai.address} />
-						<Input label={t('admin.settings.modelForPictures')} bind:value={ai.visionModel} />
-						<Input label={t('admin.settings.modelForQuestions')} bind:value={ai.textModel} />
+						<Input label={t('admin.settings.ollamaAddress')} bind:value={describing.address} />
+						<Input
+							label={t('admin.settings.modelForPictures')}
+							bind:value={describing.visionModel}
+						/>
+						<Input
+							label={t('admin.settings.modelForQuestions')}
+							bind:value={describing.textModel}
+						/>
 						<Kv
 							label={t('admin.settings.state')}
-							value={!ai.address
+							value={!describing.address
 								? t('admin.settings.notSet')
-								: !ai.reachable
+								: !describing.reachable
 									? t('admin.settings.ollamaIsNotAnswering')
-									: ai.modelsReady
+									: describing.modelsReady
 										? t('admin.settings.running')
 										: t('admin.settings.theModelsAreDownloading')}
 						/>
-						<Kv label={t('admin.settings.described')} value="{ai.described} / {ai.total}" />
+						<Kv
+							label={t('admin.settings.described')}
+							value="{describing.described} / {describing.total}"
+						/>
 						<Button type="submit" variant="gold" small>{t('common.save')}</Button>
 					</form>
 				</Card>
 			{/if}
 			{#if features.webhooks}
-				<Card id="webhooks" title="Webhooks">
+				<Card id="webhooks" title={t('admin.settings.webhooks')}>
 					<p class="alb-meta">
 						{t('admin.settings.tellsOtherProgramsWhatHappened')}
 					</p>

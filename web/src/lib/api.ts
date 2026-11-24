@@ -38,7 +38,7 @@ export type Partners = components['schemas']['Partners'];
 export type PartnerEntry = components['schemas']['PartnerEntry'];
 export type MemberRole = AlbumMember['role'];
 export type Tag = components['schemas']['Tag'];
-export type AISettings = components['schemas']['AISettings'];
+export type DescriptionSettings = components['schemas']['DescriptionSettings'];
 export type Family = components['schemas']['Family'];
 export type Webhook = components['schemas']['Webhook'];
 export type Documents = components['schemas']['Documents'];
@@ -132,6 +132,17 @@ async function request<T>(
 	const data = await response.json().catch(() => ({}));
 	if (response.status === 503 && typeof window !== 'undefined') {
 		window.dispatchEvent(new Event('mediarr:maintenance'));
+	}
+	// The session ended, here or on another device: the page goes to sign-in instead of failing on.
+	if (
+		response.status === 401 &&
+		typeof window !== 'undefined' &&
+		!path.startsWith('/api/auth/') &&
+		!path.startsWith('/api/public/') &&
+		!path.startsWith('/api/me/password') &&
+		!path.startsWith('/api/me/passkeys')
+	) {
+		window.dispatchEvent(new Event('mediarr:signedout'));
 	}
 	if (!response.ok) {
 		throw new ApiError(
@@ -456,9 +467,14 @@ export const api = {
 			member ? {} : undefined,
 			member ? 'PUT' : 'DELETE'
 		),
-	aiSettings: () => request<AISettings>(fetch, '/api/admin/ai'),
-	setAISettings: (address: string, visionModel: string, textModel: string) =>
-		request<AISettings>(fetch, '/api/admin/ai', { address, visionModel, textModel }, 'PUT'),
+	descriptionSettings: () => request<DescriptionSettings>(fetch, '/api/admin/descriptions'),
+	setDescriptionSettings: (address: string, visionModel: string, textModel: string) =>
+		request<DescriptionSettings>(
+			fetch,
+			'/api/admin/descriptions',
+			{ address, visionModel, textModel },
+			'PUT'
+		),
 	askSearch: (question: string) =>
 		request<{ query: string }>(fetch, '/api/search/ask', { question }),
 	duplicates: () => request<Duplicates>(fetch, '/api/duplicates'),
